@@ -34,7 +34,7 @@ Router::any( '/?', function( $request, $response, $service ) {
 
 		case 'plain' :
 			// Return as plain-text
-			echo $fucks_given . ' fucks given';
+			echo $fucks_given . ' fucks given' . PHP_EOL;
 			exit;
 			break;
 
