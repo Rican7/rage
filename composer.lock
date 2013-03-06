@@ -1,0 +1,117 @@
+{
+    "hash": "3411c3cd28f2e4951a4f644218fbe5dd",
+    "packages": [
+        {
+            "name": "klein/klein",
+            "version": "dev-master",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/chriso/klein.php.git",
+                "reference": "c2afdd633f6653b0558c4876f105d5e89e881457"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/chriso/klein.php/zipball/c2afdd633f6653b0558c4876f105d5e89e881457",
+                "reference": "c2afdd633f6653b0558c4876f105d5e89e881457",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=5.3.0"
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "klein.php"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Chris O'Hara",
+                    "email": "cohara87@gmail.com",
+                    "homepage": "http://chris6f.com/",
+                    "role": "Developer"
+                }
+            ],
+            "description": "A lightning fast router for PHP",
+            "homepage": "https://github.com/chriso/klein.php",
+            "keywords": [
+                "boilerplate",
+                "router",
+                "routing",
+                "sinatra"
+            ],
+            "time": "2013-02-22 00:07:07"
+        },
+        {
+            "name": "paulus/paulus",
+            "version": "v0.9.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/Rican7/Paulus.git",
+                "reference": "v0.9.3"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Rican7/Paulus/zipball/v0.9.3",
+                "reference": "v0.9.3",
+                "shasum": ""
+            },
+            "require": {
+                "klein/klein": "dev-master",
+                "php": ">=5.4.0"
+            },
+            "require-dev": {
+                "php-activerecord/php-activerecord": "dev-master"
+            },
+            "suggest": {
+                "php-activerecord/php-activerecord": "Robust ActiveRecord pattern implemented in PHP. A great ORM that Paulus was designed to be used with"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-0": {
+                    "Paulus": "."
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Trevor N. Suarez",
+                    "email": "rican7@gmail.com",
+                    "homepage": "http://about.me/tnsuarez"
+                }
+            ],
+            "description": "A PHP micro-framework (well, more like a \"mini\" framework) for creating RESTful API services quickly and efficiently.",
+            "homepage": "https://github.com/Rican7/Paulus",
+            "keywords": [
+                "api",
+                "boilerplate",
+                "microframework",
+                "rest",
+                "router",
+                "routing"
+            ],
+            "time": "2013-02-20 08:56:47"
+        }
+    ],
+    "packages-dev": null,
+    "aliases": [
+
+    ],
+    "minimum-stability": "stable",
+    "stability-flags": {
+        "klein/klein": 20
+    },
+    "platform": [
+
+    ],
+    "platform-dev": [
+
+    ]
+}

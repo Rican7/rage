@@ -1,0 +1,6 @@
+{
+    "require": {
+        "klein/klein": "dev-master",
+        "paulus/paulus": "0.9.x"
+    }
+}
