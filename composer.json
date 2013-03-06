@@ -1,6 +1,7 @@
 {
     "require": {
         "klein/klein": "dev-master",
-        "paulus/paulus": "0.9.x"
+        "paulus/paulus": "0.9.x",
+        "predis/predis": "0.8.x-dev"
     }
 }

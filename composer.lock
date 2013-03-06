@@ -1,5 +1,5 @@
 {
-    "hash": "3411c3cd28f2e4951a4f644218fbe5dd",
+    "hash": "ec8852c9a203021f65bb7ac4c09e157a",
     "packages": [
         {
             "name": "klein/klein",
@@ -98,6 +98,53 @@
                 "routing"
             ],
             "time": "2013-02-20 08:56:47"
+        },
+        {
+            "name": "predis/predis",
+            "version": "0.8.x-dev",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/nrk/predis.git",
+                "reference": "v0.8.3"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/nrk/predis/zipball/v0.8.3",
+                "reference": "v0.8.3",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=5.3.2"
+            },
+            "suggest": {
+                "ext-curl": "Allows access to Webdis when paired with phpiredis",
+                "ext-phpiredis": "Allows faster serialization and deserialization of the Redis protocol"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-0": {
+                    "Predis": "lib/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Daniele Alessandri",
+                    "email": "suppakilla@gmail.com",
+                    "homepage": "http://clorophilla.net"
+                }
+            ],
+            "description": "Flexible and feature-complete PHP client library for Redis",
+            "homepage": "http://github.com/nrk/predis",
+            "keywords": [
+                "nosql",
+                "predis",
+                "redis"
+            ],
+            "time": "2013-02-18 14:03:45"
         }
     ],
     "packages-dev": null,
@@ -106,7 +153,8 @@
     ],
     "minimum-stability": "stable",
     "stability-flags": {
-        "klein/klein": 20
+        "klein/klein": 20,
+        "predis/predis": 20
     },
     "platform": [
 
