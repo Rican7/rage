@@ -5,12 +5,13 @@ require_once( __DIR__ . '/vendor/autoload.php' );
 
 use \Paulus\Paulus;
 use \Paulus\Router;
+
 use \Predis\Client;
 
 $app = new Paulus();
 
 // Respond to a base-call
-Router::any( '/?', function( $request, $response, $service ) {
+Router::route( array( 'HEAD', 'GET', 'POST' ), '/?', function( $request, $response, $service ) {
 	// Grab our format param
 	$format = $request->param( 'format', 'json' );
 
