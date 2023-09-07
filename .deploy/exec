@@ -1,5 +1,10 @@
 #!/usr/bin/env sh
 set -eu
 
+PORT=${PORT:-80}
+
+# Nginx doesn't support env variables, so we'll just overwrite the config before running Nginx...
+sed -i "s/listen 80;/listen ${PORT};/g" /etc/nginx/sites-enabled/default
+
 trap 'kill %1' INT TERM
 php-fpm & nginx -g 'daemon off;'
