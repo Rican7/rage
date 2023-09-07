@@ -7,3 +7,6 @@ Dockerfile
 
 # Composer files
 composer.*
+
+# Environment files
+.env
