@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+set -eu
+
+trap 'kill %1' INT TERM
+php-fpm & nginx -g 'daemon off;'

@@ -1,0 +1,9 @@
+# Docker meta files, including ourself
+.dockerignore
+Dockerfile
+
+# Git files
+.git/
+
+# Composer files
+composer.*
