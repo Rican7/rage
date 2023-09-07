@@ -2,9 +2,15 @@
 set -eu
 
 PORT=${PORT:-80}
+CLOUD_RUN="${CLOUD_RUN:-}"
 
 # Nginx doesn't support env variables, so we'll just overwrite the config before running Nginx...
 sed -i "s/listen 80;/listen ${PORT};/g" /etc/nginx/sites-enabled/default
+
+# If on Google Cloud Run
+if [ "$CLOUD_RUN" ]; then
+    mv /usr/local/etc/php/conf.d/zz-php.cloudrun.ini.disabled /usr/local/etc/php/conf.d/zz-php.cloudrun.ini
+fi
 
 trap 'kill %1' INT TERM
 php-fpm & nginx -g 'daemon off;'
