@@ -35,8 +35,9 @@ Router::any( function( $request, $response, $service ) {
 Router::route( array( 'HEAD', 'GET', 'POST' ), '/?', function( $request, $response, $service ) {
 	// Create a new Predis Client (connect)
 	$redis = new Client( array(
-		'host' => '127.0.0.1',
-		'port' => 6379
+		'host' => getenv('REDIS_HOST') ?: '127.0.0.1',
+		'port' => getenv('REDIS_PORT') ?: 6379,
+		'password' => getenv('REDIS_PASSWORD') ?: null
 	));
 
 	// Increment our number of given "fucks"
