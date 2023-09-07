@@ -10,3 +10,9 @@ composer.*
 
 # Environment files
 .env
+
+# Cloud deploy files
+cloudbuild.yaml
+
+# Dev tooling
+Makefile
