@@ -15,5 +15,8 @@ WORKDIR /var/www/app
 
 EXPOSE 80
 
-COPY --chmod=755 .deploy/exec /etc/exec
+# We should be able to use `COPY --chmod=755 ...`, but that requires "Docker Buildkit", which Google Cloud Build doesn't natively support
+COPY .deploy/exec /etc/exec
+RUN chmod 755 /etc/exec
+
 CMD ["/etc/exec"]
