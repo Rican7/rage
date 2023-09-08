@@ -5,6 +5,7 @@ RUN mkdir /tmp/php-fpm
 
 RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 COPY .deploy/php-fpm.conf /usr/local/etc/php-fpm.d/zz-docker.conf
+COPY .deploy/php.ini /usr/local/etc/php/conf.d/zz-php.ini
 COPY .deploy/php.cloudrun.ini /usr/local/etc/php/conf.d/zz-php.cloudrun.ini.disabled
 
 RUN apt-get update -y \
