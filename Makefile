@@ -16,7 +16,7 @@ local-build:
 	docker build -t '${LOCAL_SERVICE_IMAGE}' .
 
 local-run:
-	docker run --rm -it --publish ${HOST_PORT}:${CONTAINER_PORT} --env-file ${ENV_FILE} ${LOCAL_SERVICE_IMAGE}
+	docker run --rm --publish ${HOST_PORT}:${CONTAINER_PORT} --env-file ${ENV_FILE} ${LOCAL_SERVICE_IMAGE}
 
 local: local-build local-run
 
