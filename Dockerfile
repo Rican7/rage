@@ -1,13 +1,14 @@
 FROM php:8.0-fpm
 
 RUN docker-php-ext-install -j "$(nproc)" opcache
+RUN mkdir /tmp/php-fpm
 
 RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 COPY .deploy/php-fpm.conf /usr/local/etc/php-fpm.d/zz-docker.conf
 COPY .deploy/php.cloudrun.ini /usr/local/etc/php/conf.d/zz-php.cloudrun.ini.disabled
 
 RUN apt-get update -y \
-    && apt-get install -y nginx
+    && apt-get install -y inotify-tools nginx
 
 COPY .deploy/nginx.conf /etc/nginx/sites-enabled/default
 

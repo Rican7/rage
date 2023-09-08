@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-set -eu
+set -meu
 
 PORT=${PORT:-80}
 CLOUD_RUN="${CLOUD_RUN:-}"
@@ -12,5 +12,10 @@ if [ "$CLOUD_RUN" ]; then
     mv /usr/local/etc/php/conf.d/zz-php.cloudrun.ini.disabled /usr/local/etc/php/conf.d/zz-php.cloudrun.ini
 fi
 
-trap 'kill %1' INT TERM
-php-fpm & nginx -g 'daemon off;'
+# Catch signals and kill the sub-processes, giving them a chance to clean-up
+trap 'kill -INT %1; kill -INT %2; sleep 5; exit' INT TERM
+inotifywait -e create,moved_to,attrib /tmp/php-fpm \
+    && { echo 'starting Nginx...'; nginx -g 'daemon off;'; echo 'exited Nginx'; } &
+php-fpm &
+
+wait
