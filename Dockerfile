@@ -1,25 +1,36 @@
-FROM php:8.0-fpm
+# Use the base image purely for building
+FROM golang:1.21 as builder
 
-RUN docker-php-ext-install -j "$(nproc)" opcache
-RUN mkdir /tmp/php-fpm
+WORKDIR /build
 
-RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
-COPY .deploy/php-fpm.conf /usr/local/etc/php-fpm.d/zz-docker.conf
-COPY .deploy/php.ini /usr/local/etc/php/conf.d/zz-php.ini
-COPY .deploy/php.cloudrun.ini /usr/local/etc/php/conf.d/zz-php.cloudrun.ini.disabled
+# Copy the module meta files and download module dependencies as a build step,
+# so that later layers can re-use the dependencies until the code changes.
+COPY go.mod go.sum ./
+RUN go mod download -x
 
-RUN apt-get update -y \
-    && apt-get install -y inotify-tools nginx
+# Copy the rest of the app code over
+COPY . ./
 
-COPY .deploy/nginx.conf /etc/nginx/sites-enabled/default
+# Build the app binary
+#
+# Some notes:
+#  - CGO_ENABLED=0 makes sure that we don't link against C libraries that won't
+#  be available later
+#  - GOOS=linux describes our target OS for RUNTIME, not build
+#  - The -mod=readonly flag ensures that go.mod/go.sum are immutable at build
+#  - The -trimpath flag removes directory paths (like `/build`) from the
+#  resulting binary, so logs and traces will be cleaner
+#  - We use the `-o` flag to name our build so that the resulting binary file
+#  name is deterministic
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=readonly -trimpath -v -o app
 
-COPY --chown=www-data:www-data . /var/www/app
+# Use the scratch image for runtime
+# (Yay "Multi-Stage Builds"!)
+FROM scratch
 
-# We should be able to use `COPY --chmod=755 ...`, but that requires "Docker Buildkit", which Google Cloud Build doesn't natively support
-COPY .deploy/exec /etc/exec
-RUN chmod 755 /etc/exec
+# Copy the built binary from the builder stage
+COPY --from=builder /build/app /app
 
-WORKDIR /var/www/app
 EXPOSE 80
 
-CMD ["/etc/exec"]
+ENTRYPOINT ["/app"]
