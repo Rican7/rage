@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -52,6 +52,8 @@ var (
 
 	logger = slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{AddSource: true}))
 )
+
+type middleware func(next http.HandlerFunc) http.HandlerFunc
 
 type apiResponse struct {
 	Meta apiMeta `json:"meta"`
@@ -143,19 +145,55 @@ func main() {
 		redisPassword = envRedisPassword
 	}
 
-	ctx := context.Background()
-
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     net.JoinHostPort(redisHost, strconv.Itoa(redisPort)),
 		Password: redisPassword,
 	})
 	defer redisClient.Close()
 
-	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+	logMiddle := loggerMiddleware(logger)
+
+	http.HandleFunc("/", logMiddle(mainHandler(logger, redisClient)))
+	http.HandleFunc("/about/", logMiddle(aboutHandler(logger)))
+
+	serverAddress := net.JoinHostPort(serverHost, strconv.Itoa(serverPort))
+
+	logger.Info("starting HTTP server", "server_address", serverAddress)
+
+	err := http.ListenAndServe(serverAddress, nil)
+	if err != nil {
+		logger.Error("error listening and serving", "error", err)
+	}
+}
+
+func loggerMiddleware(logger *slog.Logger) middleware {
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			startTime := time.Now()
+
+			ll := logger.With(
+				"request_method", r.Method,
+				"request_url", r.URL.String(),
+				"request_user_agent", r.Header.Get("User-Agent"),
+			)
+
+			ll.Info("handling incoming request")
+
+			next.ServeHTTP(w, r)
+
+			ll.Info("finished handling request", "handle_duration", time.Now().Sub(startTime).String())
+		}
+	}
+}
+
+func mainHandler(logger *slog.Logger, redisClient *redis.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		ctx := req.Context()
+
 		format, err := determineFormat(req)
 		if err != nil {
 			logger.Info("error determining format", "error", err)
-			respondError(w, format, err)
+			respondError(logger, w, format, err)
 			return
 		}
 
@@ -166,7 +204,7 @@ func main() {
 				StatusCode: http.StatusNotFound,
 				Status:     "NOT_FOUND",
 			}
-			respondError(w, format, err)
+			respondError(logger, w, format, err)
 			return
 		}
 
@@ -181,23 +219,21 @@ func main() {
 					"possible_methods": supportedMethods,
 				},
 			}
-			respondError(w, format, err)
+			respondError(logger, w, format, err)
 			return
 		}
 
 		rageCount, err := redisClient.Incr(ctx, redisKeyRageCount).Result()
 		if err != nil {
 			logger.Error("error incrementing rage count", "error", err)
-			respondError(w, format, err)
+			respondError(logger, w, format, err)
 			return
 		}
-
-		var respErr error
 
 		switch format {
 		case formatPlain:
 			msg := fmt.Sprintf("%v fucks given\n", rageCount)
-			respErr = respondPlain(w, http.StatusOK, []byte(msg))
+			respondPlain(logger, w, http.StatusOK, msg)
 		case formatJSON:
 			apiResp := &apiResponse{
 				Meta: apiMeta{
@@ -209,19 +245,49 @@ func main() {
 				},
 			}
 
-			respErr = respondJSON(w, http.StatusOK, apiResp)
+			respondJSON(logger, w, http.StatusOK, apiResp)
 		}
+	}
+}
 
-		if respErr != nil {
-			logger.Error("error while responding", "error", respErr)
-		}
-	})
+func aboutHandler(logger *slog.Logger) http.HandlerFunc {
+	// Build the about data ONCE, since it's always the same
+	aboutParsed := aboutRaw
+	aboutTemplateTexts := map[string]string{
+		"link_rot":  aboutTemplateTextLinkRot,
+		"i":         aboutTemplateTextI,
+		"my_gitHub": aboutTemplateTextMyGitHub,
+	}
 
-	http.HandleFunc("/about/", func(w http.ResponseWriter, req *http.Request) {
+	for key, replacement := range aboutTemplateTexts {
+		tag := fmt.Sprintf("{{%s}}", key)
+
+		aboutParsed = strings.ReplaceAll(aboutParsed, tag, replacement)
+	}
+
+	aboutData := apiDataAbout{}
+	aboutData.Body.Raw = aboutRaw
+	aboutData.Body.Parsed = aboutParsed
+	aboutData.Templates.Text = aboutTemplateTexts
+	aboutData.Templates.Sources = map[string]string{
+		"link_rot":  aboutTemplateSourceLinkRot,
+		"i":         aboutTemplateSourceI,
+		"my_gitHub": aboutTemplateSourceMyGitHub,
+	}
+
+	apiResp := &apiResponse{
+		Meta: apiMeta{
+			StatusCode: http.StatusOK,
+			Status:     "OK",
+		},
+		Data: aboutData,
+	}
+
+	return func(w http.ResponseWriter, req *http.Request) {
 		format, err := determineFormat(req)
 		if err != nil {
 			logger.Info("error determining format", "error", err)
-			respondError(w, format, err)
+			respondError(logger, w, format, err)
 			return
 		}
 
@@ -232,7 +298,7 @@ func main() {
 				StatusCode: http.StatusNotFound,
 				Status:     "NOT_FOUND",
 			}
-			respondError(w, format, err)
+			respondError(logger, w, format, err)
 			return
 		}
 
@@ -247,63 +313,16 @@ func main() {
 					"possible_methods": supportedMethods,
 				},
 			}
-			respondError(w, format, err)
+			respondError(logger, w, format, err)
 			return
 		}
 
-		aboutParsed := aboutRaw
-		aboutTemplateTexts := map[string]string{
-			"link_rot":  aboutTemplateTextLinkRot,
-			"i":         aboutTemplateTextI,
-			"my_gitHub": aboutTemplateTextMyGitHub,
-		}
-
-		for key, replacement := range aboutTemplateTexts {
-			tag := fmt.Sprintf("{{%s}}", key)
-
-			aboutParsed = strings.ReplaceAll(aboutParsed, tag, replacement)
-		}
-
-		var respErr error
-
 		switch format {
 		case formatPlain:
-			msg := aboutParsed
-			respErr = respondPlain(w, http.StatusOK, []byte(msg))
+			respondPlain(logger, w, http.StatusOK, aboutParsed)
 		case formatJSON:
-			aboutData := apiDataAbout{}
-			aboutData.Body.Raw = aboutRaw
-			aboutData.Body.Parsed = aboutParsed
-			aboutData.Templates.Text = aboutTemplateTexts
-			aboutData.Templates.Sources = map[string]string{
-				"link_rot":  aboutTemplateSourceLinkRot,
-				"i":         aboutTemplateSourceI,
-				"my_gitHub": aboutTemplateSourceMyGitHub,
-			}
-
-			apiResp := &apiResponse{
-				Meta: apiMeta{
-					StatusCode: http.StatusOK,
-					Status:     "OK",
-				},
-				Data: aboutData,
-			}
-
-			respErr = respondJSON(w, http.StatusOK, apiResp)
+			respondJSON(logger, w, http.StatusOK, apiResp)
 		}
-
-		if respErr != nil {
-			logger.Error("error while responding", "error", respErr)
-		}
-	})
-
-	serverAddress := net.JoinHostPort(serverHost, strconv.Itoa(serverPort))
-
-	logger.Info("starting HTTP server", "server_address", serverAddress)
-
-	err := http.ListenAndServe(serverAddress, nil)
-	if err != nil {
-		logger.Error("error listening and serving", "error", err)
 	}
 }
 
@@ -331,23 +350,37 @@ func determineFormat(req *http.Request) (string, error) {
 	return format, nil
 }
 
-func respondPlain(w http.ResponseWriter, statusCode int, data []byte) error {
+func respondPlain(logger *slog.Logger, w http.ResponseWriter, statusCode int, data string) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(statusCode)
 
-	_, err := w.Write(data)
+	_, err := w.Write([]byte(data))
 
-	return err
+	if err != nil {
+		handleRespondError(logger, err)
+	}
 }
 
-func respondJSON(w http.ResponseWriter, statusCode int, data any) error {
+func respondJSON(logger *slog.Logger, w http.ResponseWriter, statusCode int, data any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(statusCode)
 
-	return json.NewEncoder(w).Encode(data)
+	err := json.NewEncoder(w).Encode(data)
+
+	if err != nil {
+		handleRespondError(logger, err)
+	}
 }
 
-func respondError(w http.ResponseWriter, format string, err error) {
+func handleRespondError(logger *slog.Logger, err error) {
+	if err == nil {
+		return
+	}
+
+	logger.Error("error while responding", "error", err)
+}
+
+func respondError(logger *slog.Logger, w http.ResponseWriter, format string, err error) {
 	var apiErr *apiError
 
 	// If the err is an apiError, it'll be set to apiErr, otherwise...
@@ -365,11 +398,9 @@ func respondError(w http.ResponseWriter, format string, err error) {
 
 	logger.Debug("responding with error", "error", err)
 
-	var respErr error
-
 	switch format {
 	case formatPlain:
-		respErr = respondPlain(w, apiErr.StatusCode, []byte(apiErr.Error()))
+		respondPlain(logger, w, apiErr.StatusCode, apiErr.Error())
 	case formatJSON:
 		fallthrough
 	default:
@@ -382,10 +413,6 @@ func respondError(w http.ResponseWriter, format string, err error) {
 			},
 		}
 
-		respErr = respondJSON(w, apiErr.StatusCode, apiResp)
-	}
-
-	if respErr != nil {
-		logger.Error("error while responding", "error", respErr)
+		respondJSON(logger, w, apiErr.StatusCode, apiResp)
 	}
 }
