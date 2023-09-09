@@ -51,6 +51,13 @@ var (
 	redisPassword = ""
 
 	appBaseURL = "https://rage.metroserve.me/"
+
+	apiErrNotFound = apiError{
+		error: errors.New("unable to find the endpoint you requested"),
+
+		StatusCode: http.StatusNotFound,
+		Status:     "NOT_FOUND",
+	}
 )
 
 type middleware func(next http.HandlerFunc) http.HandlerFunc
@@ -110,7 +117,11 @@ func (e *apiError) Error() string {
 	}
 
 	if e.MoreInfo != nil {
-		msg = fmt.Sprintf("%s {%v}", msg, e.MoreInfo)
+		// The simplest, most readable text encoding of a generic value is JSON
+		v, err := json.Marshal(e.MoreInfo)
+		if err == nil {
+			msg = fmt.Sprintf("%s; %s", msg, v)
+		}
 	}
 
 	return msg
@@ -207,27 +218,12 @@ func mainHandler(logger *slog.Logger, redisClient *redis.Client) http.HandlerFun
 		}
 
 		if req.URL.Path != "/" {
-			err := &apiError{
-				error: errors.New("unable to find the endpoint you requested"),
-
-				StatusCode: http.StatusNotFound,
-				Status:     "NOT_FOUND",
-			}
-			respondError(logger, w, format, err)
+			respondError(logger, w, format, &apiErrNotFound)
 			return
 		}
 
 		supportedMethods := []string{http.MethodHead, http.MethodGet, http.MethodPost}
-		if !slices.Contains(supportedMethods, req.Method) {
-			err := &apiError{
-				error: errors.New("the wrong method was called on this endpoint"),
-
-				StatusCode: http.StatusMethodNotAllowed,
-				Status:     "METHOD_NOT_ALLOWED",
-				MoreInfo: map[string]any{
-					"possible_methods": supportedMethods,
-				},
-			}
+		if err := validateHTTPMethods(req, supportedMethods); err != nil {
 			respondError(logger, w, format, err)
 			return
 		}
@@ -306,27 +302,12 @@ func aboutHandler(logger *slog.Logger) http.HandlerFunc {
 		}
 
 		if req.URL.Path != "/about/" {
-			err := &apiError{
-				error: errors.New("unable to find the endpoint you requested"),
-
-				StatusCode: http.StatusNotFound,
-				Status:     "NOT_FOUND",
-			}
-			respondError(logger, w, format, err)
+			respondError(logger, w, format, &apiErrNotFound)
 			return
 		}
 
 		supportedMethods := []string{http.MethodHead, http.MethodGet}
-		if !slices.Contains(supportedMethods, req.Method) {
-			err := &apiError{
-				error: errors.New("the wrong method was called on this endpoint"),
-
-				StatusCode: http.StatusMethodNotAllowed,
-				Status:     "METHOD_NOT_ALLOWED",
-				MoreInfo: map[string]any{
-					"possible_methods": supportedMethods,
-				},
-			}
+		if err := validateHTTPMethods(req, supportedMethods); err != nil {
 			respondError(logger, w, format, err)
 			return
 		}
@@ -368,9 +349,29 @@ func determineFormat(req *http.Request) (string, error) {
 	return format, nil
 }
 
+func validateHTTPMethods(req *http.Request, supportedMethods []string) error {
+	if !slices.Contains(supportedMethods, req.Method) {
+		return &apiError{
+			error: errors.New("the wrong method was called on this endpoint"),
+
+			StatusCode: http.StatusMethodNotAllowed,
+			Status:     "METHOD_NOT_ALLOWED",
+			MoreInfo: map[string]any{
+				"possible_methods": supportedMethods,
+			},
+		}
+	}
+
+	return nil
+}
+
 func respondPlain(logger *slog.Logger, w http.ResponseWriter, statusCode int, data string) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(statusCode)
+
+	if !strings.HasSuffix(data, "\n") {
+		data += "\n"
+	}
 
 	_, err := w.Write([]byte(data))
 
