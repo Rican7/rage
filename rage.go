@@ -343,6 +343,10 @@ func aboutHandler(logger *slog.Logger) http.HandlerFunc {
 func determineFormat(req *http.Request) (string, error) {
 	availableFormats := []string{formatPlain, formatJSON}
 
+	// TODO: This should PROBABLY actually be based on content-negotiation
+	// ("Accept" header and the like), but that can get a bit complicated...
+	//
+	// This is fine for now, and how it's worked for the past 10+ years 😅
 	format := req.FormValue("format")
 	if format == "" {
 		format = formatJSON
