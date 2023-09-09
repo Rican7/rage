@@ -1,0 +1,11 @@
+services:
+  redis:
+    image: "redis"
+
+  app:
+    build: .
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8080:80"

@@ -19,23 +19,33 @@ alias fuck="curl -Ls https://rage.metroserve.me/?format=plain"
 ```
 
 
-## Install
+## Run
 
 > [!IMPORTANT]
 > This service requires a Redis instance, of which it connects via information provided in environment variables.
 
-If you have a working Go environment, you can install via `go install`:
+### Entire Service
+
+If you have Docker, and the docker-compose plugin, you should be able to run via
+`docker compose`:
 
 ```shell
-go install github.com/Rican7/rage@latest
+docker compose up
 ```
 
-... Otherwise, if you have Docker, you should be able to just build it with
+### App Only
 
-`docker build`:
+If you just want the HTTP service app, and you have a working Go environment, you can run via `go run`:
 
 ```shell
-docker build -t 'rage-or-whatever-you-wanna-call-it' .
+go run github.com/Rican7/rage@latest
+```
+
+... Otherwise, if you have Docker, you should be able to just build it with `docker build` and run it with `docker run`:
+
+```shell
+docker build -t 'rican7/rage' .
+docker run --rm --publish 8080:80 --env-file .env 'rican7/rage'
 ```
 
 
