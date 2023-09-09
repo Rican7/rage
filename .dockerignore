@@ -5,9 +5,6 @@ Dockerfile
 # Git files
 .git/
 
-# Composer files
-composer.*
-
 # Environment files
 .env
 

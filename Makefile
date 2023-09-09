@@ -9,13 +9,15 @@ HOST_PORT ?= 8081
 ENV_FILE ?= .env
 
 
-all:
-	# No default target, for now
+default: ${ENV_FILE}
+
+${ENV_FILE}:
+	cp .env.example ${ENV_FILE}
 
 local-build:
 	docker build -t '${LOCAL_SERVICE_IMAGE}' .
 
-local-run:
+local-run: ${ENV_FILE}
 	docker run --rm --publish ${HOST_PORT}:${CONTAINER_PORT} --env-file ${ENV_FILE} ${LOCAL_SERVICE_IMAGE}
 
 local: local-build local-run
@@ -29,4 +31,4 @@ remote-deploy:
 remote: remote-build remote-deploy
 
 
-.PHONY: all local-build local-run local remote-build remote-deploy remote
+.PHONY: default local-build local-run local remote-build remote-deploy remote
