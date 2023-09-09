@@ -32,7 +32,7 @@ Anyway, this is silly. Enjoy!
 
 PS: Alias this in your shell environment for a good time, like this:
 
-    alias fuck="curl -Ls http://rage.metroserve.me/?format=plain"
+    alias fuck="curl -Ls {{app_base_url}}?format=plain"
 
 `
 	aboutTemplateTextLinkRot    = "link rot"
@@ -50,7 +50,7 @@ var (
 	redisPort     = 6379
 	redisPassword = ""
 
-	logger = slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{AddSource: true}))
+	appBaseURL = "https://rage.metroserve.me/"
 )
 
 type middleware func(next http.HandlerFunc) http.HandlerFunc
@@ -117,6 +117,32 @@ func (e *apiError) Error() string {
 }
 
 func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{AddSource: true}))
+
+	initConfig(logger)
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     net.JoinHostPort(redisHost, strconv.Itoa(redisPort)),
+		Password: redisPassword,
+	})
+	defer redisClient.Close()
+
+	logMiddle := loggerMiddleware(logger)
+
+	http.HandleFunc("/", logMiddle(mainHandler(logger, redisClient)))
+	http.HandleFunc("/about/", logMiddle(aboutHandler(logger)))
+
+	serverAddress := net.JoinHostPort(serverHost, strconv.Itoa(serverPort))
+
+	logger.Info("starting HTTP server", "server_address", serverAddress)
+
+	err := http.ListenAndServe(serverAddress, nil)
+	if err != nil {
+		logger.Error("error listening and serving", "error", err)
+	}
+}
+
+func initConfig(logger *slog.Logger) {
 	if envServerHost := os.Getenv("HOST"); envServerHost != "" {
 		serverHost = envServerHost
 	}
@@ -144,25 +170,8 @@ func main() {
 	if envRedisPassword := os.Getenv("REDIS_PASSWORD"); envRedisPassword != "" {
 		redisPassword = envRedisPassword
 	}
-
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     net.JoinHostPort(redisHost, strconv.Itoa(redisPort)),
-		Password: redisPassword,
-	})
-	defer redisClient.Close()
-
-	logMiddle := loggerMiddleware(logger)
-
-	http.HandleFunc("/", logMiddle(mainHandler(logger, redisClient)))
-	http.HandleFunc("/about/", logMiddle(aboutHandler(logger)))
-
-	serverAddress := net.JoinHostPort(serverHost, strconv.Itoa(serverPort))
-
-	logger.Info("starting HTTP server", "server_address", serverAddress)
-
-	err := http.ListenAndServe(serverAddress, nil)
-	if err != nil {
-		logger.Error("error listening and serving", "error", err)
+	if envAppBaseURL := os.Getenv("APP_BASE_URL"); envAppBaseURL != "" {
+		appBaseURL = envAppBaseURL
 	}
 }
 
@@ -239,6 +248,9 @@ func mainHandler(logger *slog.Logger, redisClient *redis.Client) http.HandlerFun
 				Meta: apiMeta{
 					StatusCode: http.StatusOK,
 					Status:     "OK",
+					MoreInfo: map[string]any{
+						"about": appBaseURL + "about/",
+					},
 				},
 				Data: apiDataFucks{
 					FucksGiven: uint64(rageCount),
@@ -254,9 +266,10 @@ func aboutHandler(logger *slog.Logger) http.HandlerFunc {
 	// Build the about data ONCE, since it's always the same
 	aboutParsed := aboutRaw
 	aboutTemplateTexts := map[string]string{
-		"link_rot":  aboutTemplateTextLinkRot,
-		"i":         aboutTemplateTextI,
-		"my_gitHub": aboutTemplateTextMyGitHub,
+		"link_rot":     aboutTemplateTextLinkRot,
+		"i":            aboutTemplateTextI,
+		"my_gitHub":    aboutTemplateTextMyGitHub,
+		"app_base_url": appBaseURL,
 	}
 
 	for key, replacement := range aboutTemplateTexts {
@@ -270,9 +283,10 @@ func aboutHandler(logger *slog.Logger) http.HandlerFunc {
 	aboutData.Body.Parsed = aboutParsed
 	aboutData.Templates.Text = aboutTemplateTexts
 	aboutData.Templates.Sources = map[string]string{
-		"link_rot":  aboutTemplateSourceLinkRot,
-		"i":         aboutTemplateSourceI,
-		"my_gitHub": aboutTemplateSourceMyGitHub,
+		"link_rot":     aboutTemplateSourceLinkRot,
+		"i":            aboutTemplateSourceI,
+		"my_gitHub":    aboutTemplateSourceMyGitHub,
+		"app_base_url": appBaseURL,
 	}
 
 	apiResp := &apiResponse{
