@@ -22,7 +22,7 @@ const (
 
 	redisKeyRageCount = "app:rage fucks"
 
-	aboutRaw = `This app has a LONG history, and unfortunately it's referenceable past has experienced {{link_rot}}. In short, a co-worker of mine from many years ago had a silly bash alias that worked like this, and then it died. Soooo, I recreated it... and then it sat for 10+ years untouched. And yea, amazingly it ran without issues all that time.
+	aboutRaw = `This app has a LONG history, and unfortunately it's referenceable past has experienced {{link_rot}}. In short, a co-worker of mine from many years ago had a silly bash alias that worked by pinging a service like this, and then it died. Soooo, I recreated it... and then it sat for 10+ years untouched. And yea, amazingly it ran without issues all that time.
 
 Recently, {{i}} started some maintenance on some old projects and servers, and I found this app just sitting, still running all this time, but on a VERY old version of PHP, with it's version-controlled source having never been pushed to a remote... So, I pushed the source to {{my_gitHub}}, containerized the app, and now it's running on modern serverless fully-managed compute. Yay!
 
