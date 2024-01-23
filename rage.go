@@ -127,6 +127,57 @@ func (e *apiError) Error() string {
 	return msg
 }
 
+type routingErrorResponseWriter struct {
+	logger *slog.Logger
+	http.ResponseWriter
+
+	format      string
+	statusCode  int
+	intercepted bool
+}
+
+func (w *routingErrorResponseWriter) WriteHeader(statusCode int) {
+	if w.intercepted {
+		return
+	}
+
+	w.statusCode = statusCode
+
+	switch statusCode {
+	case 404:
+		respondError(w.logger, w.ResponseWriter, w.format, &apiErrNotFound)
+		w.intercepted = true
+	case 405:
+		supportedMethods := strings.Split(
+			w.ResponseWriter.Header().Get(http.CanonicalHeaderKey("Allow")),
+			", ",
+		)
+
+		err := &apiError{
+			error: errors.New("the wrong method was called on this endpoint"),
+
+			StatusCode: http.StatusMethodNotAllowed,
+			Status:     "METHOD_NOT_ALLOWED",
+			MoreInfo: map[string]any{
+				"possible_methods": supportedMethods,
+			},
+		}
+
+		respondError(w.logger, w.ResponseWriter, w.format, err)
+		w.intercepted = true
+	default:
+		w.ResponseWriter.WriteHeader(statusCode)
+	}
+}
+
+func (w *routingErrorResponseWriter) Write(data []byte) (int, error) {
+	if w.intercepted {
+		return 0, nil
+	}
+
+	return w.ResponseWriter.Write(data)
+}
+
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{AddSource: true}))
 
@@ -138,16 +189,25 @@ func main() {
 	})
 	defer redisClient.Close()
 
-	logMiddle := loggerMiddleware(logger)
+	mainRoute := mainHandler(logger, redisClient)
+	aboutRoute := aboutHandler(logger)
 
-	http.HandleFunc("/", logMiddle(mainHandler(logger, redisClient)))
-	http.HandleFunc("/about/", logMiddle(aboutHandler(logger)))
+	router := http.NewServeMux()
+
+	router.HandleFunc("GET /{$}", mainRoute)
+	router.HandleFunc("POST /{$}", mainRoute)
+	router.HandleFunc("GET /about/{$}", aboutRoute)
 
 	serverAddress := net.JoinHostPort(serverHost, strconv.Itoa(serverPort))
 
+	logMiddle := loggerMiddleware(logger)
+	routingErrorResponseMiddle := routingErrorResponseMiddleware(logger)
+
+	globalHandler := logMiddle(routingErrorResponseMiddle(router.ServeHTTP))
+
 	logger.Info("starting HTTP server", "server_address", serverAddress)
 
-	err := http.ListenAndServe(serverAddress, nil)
+	err := http.ListenAndServe(serverAddress, globalHandler)
 	if err != nil {
 		logger.Error("error listening and serving", "error", err)
 	}
@@ -188,20 +248,42 @@ func initConfig(logger *slog.Logger) {
 
 func loggerMiddleware(logger *slog.Logger) middleware {
 	return func(next http.HandlerFunc) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
+		return func(w http.ResponseWriter, req *http.Request) {
 			startTime := time.Now()
 
 			ll := logger.With(
-				"request_method", r.Method,
-				"request_url", r.URL.String(),
-				"request_user_agent", r.Header.Get("User-Agent"),
+				"request_method", req.Method,
+				"request_url", req.URL.String(),
+				"request_user_agent", req.Header.Get("User-Agent"),
 			)
 
 			ll.Info("handling incoming request")
 
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(w, req)
 
 			ll.Info("finished handling request", "handle_duration", time.Now().Sub(startTime).String())
+		}
+	}
+}
+
+func routingErrorResponseMiddleware(logger *slog.Logger) middleware {
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, req *http.Request) {
+			format, err := determineFormat(req)
+			if err != nil {
+				logger.Info("error determining format", "error", err)
+				respondError(logger, w, format, err)
+				return
+			}
+
+			w = &routingErrorResponseWriter{
+				logger:         logger,
+				ResponseWriter: w,
+
+				format: format,
+			}
+
+			next.ServeHTTP(w, req)
 		}
 	}
 }
@@ -213,17 +295,6 @@ func mainHandler(logger *slog.Logger, redisClient *redis.Client) http.HandlerFun
 		format, err := determineFormat(req)
 		if err != nil {
 			logger.Info("error determining format", "error", err)
-			respondError(logger, w, format, err)
-			return
-		}
-
-		if req.URL.Path != "/" {
-			respondError(logger, w, format, &apiErrNotFound)
-			return
-		}
-
-		supportedMethods := []string{http.MethodHead, http.MethodGet, http.MethodPost}
-		if err := validateHTTPMethods(req, supportedMethods); err != nil {
 			respondError(logger, w, format, err)
 			return
 		}
@@ -301,17 +372,6 @@ func aboutHandler(logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		if req.URL.Path != "/about/" {
-			respondError(logger, w, format, &apiErrNotFound)
-			return
-		}
-
-		supportedMethods := []string{http.MethodHead, http.MethodGet}
-		if err := validateHTTPMethods(req, supportedMethods); err != nil {
-			respondError(logger, w, format, err)
-			return
-		}
-
 		switch format {
 		case formatPlain:
 			respondPlain(logger, w, http.StatusOK, aboutParsed)
@@ -347,22 +407,6 @@ func determineFormat(req *http.Request) (string, error) {
 	}
 
 	return format, nil
-}
-
-func validateHTTPMethods(req *http.Request, supportedMethods []string) error {
-	if !slices.Contains(supportedMethods, req.Method) {
-		return &apiError{
-			error: errors.New("the wrong method was called on this endpoint"),
-
-			StatusCode: http.StatusMethodNotAllowed,
-			Status:     "METHOD_NOT_ALLOWED",
-			MoreInfo: map[string]any{
-				"possible_methods": supportedMethods,
-			},
-		}
-	}
-
-	return nil
 }
 
 func respondPlain(logger *slog.Logger, w http.ResponseWriter, statusCode int, data string) {
