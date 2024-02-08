@@ -1,5 +1,5 @@
 # Use the base image purely for building
-FROM golang:1.22rc1 as builder
+FROM golang:1.22 as builder
 
 WORKDIR /build
 
